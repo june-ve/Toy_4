@@ -8,6 +8,9 @@ import com.example.backend.repository.DailyCommentRepository;
 import com.example.backend.repository.DiaryRepository;
 import com.example.backend.repository.UserRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -84,23 +87,40 @@ public class MyPageService {
         LocalDate yesterday = LocalDate.now().minusDays(1);
         LocalDateTime startOfYesterday = yesterday.atStartOfDay();
         LocalDateTime endOfYesterday = yesterday.atTime(LocalTime.MAX);
-        int streak = 0;
 
         // 1. 어제 일기가 없으면 연속 일수는 0
         boolean hasYesterdayDiary = diaryRepository.existsByUserAndCreatedAtBetween(user, startOfYesterday, endOfYesterday);
         if (!hasYesterdayDiary) {
-            return streak;
+            return 0;
         }
 
-        // 2. 어제 일기가 있다면 전체 목록을 조회하여 연속 일수 계산
-        List<Diary> diaries = diaryRepository.findByUserOrderByCreatedAtDesc(user);
-        for (Diary diary : diaries) {
-            LocalDate diaryDate = diary.getCreatedAt().toLocalDate();
-            if (diaryDate.equals(yesterday.minusDays(streak))) {
-                streak++;
-            } else if (diaryDate.isBefore(yesterday.minusDays(streak))) {
+        // 2. 페이징을 통해 연속 일수 계산
+        int streak = 0;
+        int pageNumber = 0;
+        int pageSize = 50; // 한 번에 조회할 일기 개수
+        boolean hasNext = true;
+
+        while (hasNext) {
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            Slice<Diary> diarySlice = diaryRepository.findByUserOrderByCreatedAtDesc(user, pageable);
+            List<Diary> diaries = diarySlice.getContent();
+
+            if (diaries.isEmpty()) {
                 break;
             }
+
+            for (Diary diary : diaries) {
+                LocalDate diaryDate = diary.getCreatedAt().toLocalDate();
+                
+                if (diaryDate.equals(yesterday.minusDays(streak))) {
+                    streak++;
+                } else if (diaryDate.isBefore(yesterday.minusDays(streak))) {
+                    return streak;
+                }
+            }
+
+            hasNext = diarySlice.hasNext();
+            pageNumber++;
         }
         return streak;
     }
