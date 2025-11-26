@@ -17,6 +17,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MyPageService {
+    
     private static final String DEFAULT_STAMP_IMAGE = "image/default_stamp.png";
     private final DiaryRepository diaryRepository;
     private final DailyCommentRepository dailyCommentRepository;
@@ -32,18 +33,8 @@ public class MyPageService {
         DailyComment recentComment = dailyCommentRepository.findTopByUserOrderByCreatedAtDesc(user);
         List<String> mainEmotionTags = extractEmotionTags(recentComment);
         String recentCommentContent = recentComment != null ? recentComment.getContent() : null;
-        String recentStampImage = DEFAULT_STAMP_IMAGE;
+        String recentStampImage = getActiveStampImage(user);
 
-        // 현재 적용된 스탬프 정보 가져오기
-        try {
-            UserStampDto activeStamp = pointshopService.getActiveStamp(user.getUserId());
-            if (activeStamp != null && activeStamp.getStampImage() != null && !activeStamp.getStampImage().isBlank()) {
-                recentStampImage = activeStamp.getStampImage();
-            }
-        } catch (RuntimeException e) {
-            log.warn("Failed to load active stamp for user {}", user.getUserId(), e);
-        }
-        
         MyPageSummaryDto dto = new MyPageSummaryDto();
         dto.setNickname(user.getUserNickname());
         dto.setEmail(user.getUserEmail());
@@ -70,6 +61,19 @@ public class MyPageService {
             .filter(name -> name != null && !name.isBlank())
             .map(name -> "#" + name)
             .toList();
+    }
+
+    // 현재 적용된 스탬프 이미지 가져오기
+    private String getActiveStampImage(User user) {
+        try {
+            UserStampDto activeStamp = pointshopService.getActiveStamp(user.getUserId());
+            if (activeStamp != null && activeStamp.getStampImage() != null && !activeStamp.getStampImage().isBlank()) {
+                return activeStamp.getStampImage();
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to load active stamp for user {}", user.getUserId(), e);
+        }
+        return DEFAULT_STAMP_IMAGE;
     }
 
     // 어제까지 연속 일기 작성 일수 계산
