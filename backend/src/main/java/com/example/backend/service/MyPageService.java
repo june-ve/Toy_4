@@ -1,22 +1,23 @@
 package com.example.backend.service;
 
 import com.example.backend.dto.MyPageSummaryDto;
-import com.example.backend.entity.DailyComment;
-import com.example.backend.entity.Diary;
-import com.example.backend.entity.User;
-import com.example.backend.entity.CommentEmotionMapping;
+import com.example.backend.dto.UserStampDto;
+import com.example.backend.entity.*;
 import com.example.backend.repository.CommentEmotionMappingRepository;
 import com.example.backend.repository.DailyCommentRepository;
 import com.example.backend.repository.DiaryRepository;
 import com.example.backend.repository.UserRepository;
-import jakarta.transaction.Transactional;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MyPageService {
+    private static final String DEFAULT_STAMP_IMAGE = "image/default_stamp.png";
     private final DiaryRepository diaryRepository;
     private final DailyCommentRepository dailyCommentRepository;
     private final CommentEmotionMappingRepository commentEmotionMappingRepository;
@@ -24,41 +25,24 @@ public class MyPageService {
     private final PointshopService pointshopService;
 
     // 마이페이지 요약 정보 조회
-    @Transactional
+    @Transactional(readOnly = true)
     public MyPageSummaryDto getMyPageSummary(User user) {
         int totalDiaryCount = diaryRepository.countDistinctDatesByUser(user);
         int consecutiveDiaryDays = calculateConsecutiveDiaryDays(user);
         DailyComment recentComment = dailyCommentRepository.findTopByUserOrderByCreatedAtDesc(user);
-        List<String> mainEmotions = List.of();
-        String recentCommentContent = null;
-        String recentStampImage = null;
-        
-        if (recentComment != null) {
-            // 감정 매핑 조회 및 감정명 추출
-            List<CommentEmotionMapping> mappings = commentEmotionMappingRepository.findByDailyCommentIn(List.of(recentComment));
-            mainEmotions = mappings.stream()
-                .map(m -> m.getEmotionData().getName())
-                .toList();
-            recentCommentContent = recentComment.getContent();
-        }
-        
+        List<String> mainEmotionTags = extractEmotionTags(recentComment);
+        String recentCommentContent = recentComment != null ? recentComment.getContent() : null;
+        String recentStampImage = DEFAULT_STAMP_IMAGE;
+
         // 현재 적용된 스탬프 정보 가져오기
         try {
-            com.example.backend.dto.UserStampDto activeStamp = pointshopService.getActiveStamp(user.getUserId());
-            if (activeStamp != null) {
+            UserStampDto activeStamp = pointshopService.getActiveStamp(user.getUserId());
+            if (activeStamp != null && activeStamp.getStampImage() != null && !activeStamp.getStampImage().isBlank()) {
                 recentStampImage = activeStamp.getStampImage();
-            } else {
-                recentStampImage = "image/default_stamp.png";
             }
-        } catch (Exception e) {
-            recentStampImage = "image/default_stamp.png";
+        } catch (RuntimeException e) {
+            log.warn("Failed to load active stamp for user {}", user.getUserId(), e);
         }
-        
-        // mainEmotions를 '#행복 #피로' 형식의 1개 문자열 리스트로 가공
-        String mainEmotionsStr = mainEmotions.stream()
-            .map(e -> "#" + e)
-            .reduce((a, b) -> a + " " + b)
-            .orElse("");
         
         MyPageSummaryDto dto = new MyPageSummaryDto();
         dto.setNickname(user.getUserNickname());
@@ -66,11 +50,26 @@ public class MyPageService {
         dto.setJoinDate(user.getUserCreatedAt().toLocalDate());
         dto.setTotalDiaryCount(totalDiaryCount);
         dto.setConsecutiveDiaryDays(consecutiveDiaryDays);
-        dto.setMainEmotions(List.of(mainEmotionsStr));
+        dto.setMainEmotions(mainEmotionTags);
         dto.setRecentAiComment(recentCommentContent != null ? recentCommentContent : "AI 코멘트가 없습니다.");
         dto.setRecentStampImage(recentStampImage);
         dto.setCommentTime(user.getUserCommentTime());
         return dto;
+    }
+
+    // '주요 감정 상태' 태그 추출
+    private List<String> extractEmotionTags(DailyComment dailyComment) {
+        if (dailyComment == null) {
+            return List.of();
+        }
+
+        return commentEmotionMappingRepository.findByDailyCommentIn(List.of(dailyComment)).stream()
+            .map(CommentEmotionMapping::getEmotionData)
+            .filter(java.util.Objects::nonNull)
+            .map(EmotionData::getName)
+            .filter(name -> name != null && !name.isBlank())
+            .map(name -> "#" + name)
+            .toList();
     }
 
     // 어제까지 연속 일기 작성 일수 계산
