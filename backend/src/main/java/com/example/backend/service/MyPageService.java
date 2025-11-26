@@ -17,7 +17,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class MyPageService {
-    
+
     private static final String DEFAULT_STAMP_IMAGE = "image/default_stamp.png";
     private final DiaryRepository diaryRepository;
     private final DailyCommentRepository dailyCommentRepository;
@@ -35,17 +35,17 @@ public class MyPageService {
         String recentCommentContent = recentComment != null ? recentComment.getContent() : null;
         String recentStampImage = getActiveStampImage(user);
 
-        MyPageSummaryDto dto = new MyPageSummaryDto();
-        dto.setNickname(user.getUserNickname());
-        dto.setEmail(user.getUserEmail());
-        dto.setJoinDate(user.getUserCreatedAt().toLocalDate());
-        dto.setTotalDiaryCount(totalDiaryCount);
-        dto.setConsecutiveDiaryDays(consecutiveDiaryDays);
-        dto.setMainEmotions(mainEmotionTags);
-        dto.setRecentAiComment(recentCommentContent != null ? recentCommentContent : "AI 코멘트가 없습니다.");
-        dto.setRecentStampImage(recentStampImage);
-        dto.setCommentTime(user.getUserCommentTime());
-        return dto;
+        return MyPageSummaryDto.builder()
+            .nickname(user.getUserNickname())
+            .email(user.getUserEmail())
+            .joinDate(user.getUserCreatedAt().toLocalDate())
+            .totalDiaryCount(totalDiaryCount)
+            .consecutiveDiaryDays(consecutiveDiaryDays)
+            .mainEmotions(mainEmotionTags)
+            .recentAiComment(recentCommentContent != null ? recentCommentContent : "AI 코멘트가 없습니다.")
+            .recentStampImage(recentStampImage)
+            .commentTime(user.getUserCommentTime())
+            .build();
     }
 
     // '주요 감정 상태' 태그 추출
