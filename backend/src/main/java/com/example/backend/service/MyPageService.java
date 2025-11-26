@@ -11,6 +11,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Slf4j
@@ -78,14 +81,21 @@ public class MyPageService {
 
     // 어제까지 연속 일기 작성 일수 계산
     private int calculateConsecutiveDiaryDays(User user) {
-        List<Diary> diaries = diaryRepository.findByUserOrderByCreatedAtDesc(user);
-        if (diaries.isEmpty()) {
-            return 0;
-        }
-        java.time.LocalDate yesterday = java.time.LocalDate.now().minusDays(1);
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        LocalDateTime startOfYesterday = yesterday.atStartOfDay();
+        LocalDateTime endOfYesterday = yesterday.atTime(LocalTime.MAX);
         int streak = 0;
+
+        // 1. 어제 일기가 없으면 연속 일수는 0
+        boolean hasYesterdayDiary = diaryRepository.existsByUserAndCreatedAtBetween(user, startOfYesterday, endOfYesterday);
+        if (!hasYesterdayDiary) {
+            return streak;
+        }
+
+        // 2. 어제 일기가 있다면 전체 목록을 조회하여 연속 일수 계산
+        List<Diary> diaries = diaryRepository.findByUserOrderByCreatedAtDesc(user);
         for (Diary diary : diaries) {
-            java.time.LocalDate diaryDate = diary.getCreatedAt().toLocalDate();
+            LocalDate diaryDate = diary.getCreatedAt().toLocalDate();
             if (diaryDate.equals(yesterday.minusDays(streak))) {
                 streak++;
             } else if (diaryDate.isBefore(yesterday.minusDays(streak))) {

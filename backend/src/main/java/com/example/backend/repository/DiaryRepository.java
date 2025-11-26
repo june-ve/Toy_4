@@ -14,7 +14,7 @@ import java.util.List;
 public interface DiaryRepository extends JpaRepository<Diary, Long> {
     List<Diary> findByUserAndCreatedAtBetween(User user, LocalDateTime start, LocalDateTime end);
     List<Diary> findByUser_UserIdAndCreatedAtBetween(Long userId, LocalDateTime start, LocalDateTime end);
-    Diary findTopByUserOrderByCreatedAtDesc(User user);
+    boolean existsByUserAndCreatedAtBetween(User user, LocalDateTime start, LocalDateTime end);
     List<Diary> findByUserOrderByCreatedAtDesc(User user);
     
     // 같은 날짜의 일기를 중복 제거하여 카운트
